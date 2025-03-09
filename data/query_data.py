@@ -1,7 +1,5 @@
 import os
 from langchain_google_genai import GoogleGenerativeAI
-from langchain.chains import SimpleSequentialChain
-from langchain.chains import LLMChain
 import argparse
 from langchain_chroma import Chroma
 from langchain.prompts import ChatPromptTemplate
@@ -40,7 +38,11 @@ def main():
 def query_rag(query_text: str):
     # Prepare the DB.
     embedding_function = get_embedding_function()
-    db = Chroma(persist_directory=CHROMA_PATH, embedding_function=embedding_function)
+
+    try:
+        db = Chroma(persist_directory=CHROMA_PATH, embedding_function=embedding_function)
+    except Exception as e:
+        raise ValueError(f"Error loading Chroma database: {e}")
 
     # Search the DB.
     results = db.similarity_search_with_score(query_text, k=5)
@@ -58,7 +60,10 @@ def query_rag(query_text: str):
     )
 
 
-    response_text = llm_gemini.invoke(prompt)
+    try:
+        response_text = llm_gemini.invoke(prompt)
+    except Exception as e:
+        raise ValueError(f"Error invoking Google Gemini LLM: {e}")
 
     sources = [doc.metadata.get("id", None) for doc, _score in results]
     formatted_response = f"Response: {response_text}\nSources: {sources}"

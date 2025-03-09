@@ -7,7 +7,7 @@ load_dotenv()
 
 google_api_key = os.getenv("GOOGLE_API_KEY")
 if not google_api_key:
-        ValueError("GOOGLE_API_KEY environment variable not set")
+       raise ValueError("GOOGLE_API_KEY environment variable not set")
 
 
 
