@@ -2,7 +2,8 @@ import os
 from langchain_google_genai import GoogleGenerativeAI
 import argparse
 from langchain_chroma import Chroma
-from get_embedding_function import get_embedding_function
+from langchain.prompts import ChatPromptTemplate
+from data.get_embedding_function import get_embedding_function
 from dotenv import load_dotenv
 
 load_dotenv()
