@@ -12,14 +12,19 @@ Stacks AI is a cutting-edge project focused on developing advanced artificial in
 To get started with Stacks AI, follow the instructions below:
 
 1. Clone the repository:
+
    ```bash
    git clone https://github.com/Belloabraham121/stacks_ai.git
    ```
+
 2. Navigate to the project directory:
+
    ```bash
    cd stacks_ai
    ```
+
 3. Install the required dependencies:
+
    ```bash
    pip install -r requirements.txt
    ```
