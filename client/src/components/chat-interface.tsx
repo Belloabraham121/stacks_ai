@@ -10,6 +10,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { toast } from "@/components/ui/use-toast"
 import { cn } from "@/lib/utils"
 import ChatMessage from "./chat-message"
+import { getOrCreateUserId } from "@/utils/userId"
+import { set } from "date-fns"
 
 // Simplified interfaces for our data types
 interface User {
@@ -18,10 +20,8 @@ interface User {
 }
 
 interface ChatHistory {
-  id: string;
-  question: string;
-  response: string;
-  timestamp: string;
+  chats: { question: string, response: string, timestamp: string }[];
+  session_id: string;
 }
 
 interface Message {
@@ -39,10 +39,11 @@ export default function ChatInterface() {
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [currentUser, setCurrentUser] = useState<User | null>(null)
   const [username, setUsername] = useState("")
+  const [userId, setUserId] = useState<string>(getOrCreateUserId())
   
   // Chat state
   const [chatHistory, setChatHistory] = useState<ChatHistory[]>([])
-  const [activeChatId, setActiveChatId] = useState<string | null>(null)
+  const [activeChatId, setActiveChatId] = useState<string | null>(crypto.randomUUID())
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState("")
   const [isLoading, setIsLoading] = useState(false)
@@ -65,6 +66,7 @@ export default function ChatInterface() {
     if (savedDarkMode) {
       setIsDarkMode(savedDarkMode === 'true')
     }
+    setUserId(getOrCreateUserId())
     
     // Check if user is logged in (from localStorage)
     const savedUser = localStorage.getItem('currentUser')
@@ -74,7 +76,7 @@ export default function ChatInterface() {
         setCurrentUser(parsedUser)
         setIsLoggedIn(true)
         // Fetch chat history for this user
-        fetchChatHistory(parsedUser.id)
+        fetchAllChatHistory(userId)
       } catch (e) {
         console.error('Failed to parse saved user:', e)
         localStorage.removeItem('currentUser')
@@ -85,7 +87,29 @@ export default function ChatInterface() {
   // API functions
   const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
 
-  const fetchChatHistory = async (userId: string) => {
+  const fetchChatHistory = async (userId: string, chatId: string) => {
+    try {
+      // Updated to use the full backend URL with port 5000
+      const response = await fetch(`${backendUrl}/history/${userId}/${chatId}`, {
+        headers: {
+          'Accept': 'application/json',
+        },
+      })
+      if (!response.ok) throw new Error('Failed to fetch chat history')
+      
+      const data = await response.json()
+      return data.reverse()
+    } catch (error) {
+      console.error('Error fetching chat history:', error)
+      toast({
+        title: "Error",
+        description: "Failed to load chat history. Make sure the backend server is running on port 5000.",
+        variant: "destructive"
+      })
+    }
+  }
+
+  const fetchAllChatHistory = async (userId: string) => {
     try {
       // Updated to use the full backend URL with port 5000
       const response = await fetch(`${backendUrl}/history/${userId}`, {
@@ -100,7 +124,7 @@ export default function ChatInterface() {
       
       // If there's chat history and no active chat, set the most recent one
       if (data.length > 0 && !activeChatId) {
-        setActiveChatId(data[0].id)
+        setActiveChatId(data[0].session_id)
         loadChat(data[0])
       }
     } catch (error) {
@@ -114,20 +138,21 @@ export default function ChatInterface() {
   }
   
   // Load a specific chat
-  const loadChat = (chat: ChatHistory) => {
-    setActiveChatId(chat.id)
-    setMessages([
+  const loadChat = async (chat: ChatHistory) => {
+    const chatMessagesData = await fetchChatHistory(userId, chat.session_id)
+    setActiveChatId(chat.session_id)
+    setMessages(chatMessagesData.map((msg: { question: string, response: string, timestamp: string }, index: number) => [
       {
-        id: `q-${chat.id}`,
-        content: chat.question,
-        role: "user"
+      id: `q-${index}`,
+      content: msg.question,
+      role: "user"
       },
       {
-        id: `a-${chat.id}`,
-        content: chat.response,
-        role: "assistant"
+      id: `a-${index}`,
+      content: msg.response,
+      role: "assistant"
       }
-    ])
+    ]).flat());
   }
   
   // Handle login
@@ -146,7 +171,7 @@ export default function ChatInterface() {
     // In a real app, you would validate credentials with your backend
     // For demo purposes, we'll create a simple user object
     const user: User = {
-      id: username.toLowerCase().replace(/\s+/g, '-'),
+      id: userId,
       name: username
     }
     
@@ -156,12 +181,13 @@ export default function ChatInterface() {
     setIsLoggedIn(true)
     
     // Fetch this user's chat history
-    fetchChatHistory(user.id)
+    fetchAllChatHistory(userId)
   }
   
   // Handle logout
   const handleLogout = () => {
     localStorage.removeItem('currentUser')
+    localStorage.removeItem('userId')
     setCurrentUser(null)
     setIsLoggedIn(false)
     setChatHistory([])
@@ -171,7 +197,7 @@ export default function ChatInterface() {
   
   // Start new chat
   const startNewChat = () => {
-    setActiveChatId(null)
+    setActiveChatId(crypto.randomUUID())
     setMessages([])
   }
   
@@ -204,12 +230,14 @@ export default function ChatInterface() {
           'Accept': 'application/json',
         },
         body: JSON.stringify({
-          user_id: currentUser.id,
-          question: userMessage.content
+          user_id: userId,
+          question: userMessage.content,
+          chat_id: activeChatId
         }),
-      })
-      
+      }
+    ) 
       if (!response.ok) throw new Error('Failed to send message')
+      
       
       const data = await response.json()
       
@@ -223,7 +251,9 @@ export default function ChatInterface() {
       setMessages(prev => [...prev, assistantMessage])
       
       // Refresh chat history to include the new chat
-      fetchChatHistory(currentUser.id)
+      if (userId){
+        fetchAllChatHistory(userId)
+      }
     } catch (error) {
       console.error('Error sending message:', error)
       toast({
@@ -247,7 +277,7 @@ export default function ChatInterface() {
       <div className={cn("flex min-h-screen items-center justify-center p-4", isDarkMode ? "dark" : "")}>
         <div className="w-full max-w-md space-y-4 bg-white dark:bg-gray-900 p-6 rounded-lg shadow-lg">
           <div className="text-center">
-            <h1 className="text-2xl font-bold dark:text-white">Login</h1>
+            <h1 className="text-2xl font-bold dark:text-white">Welcome To Stacks AI</h1>
             <p className="text-gray-500 dark:text-gray-400">Enter your username to continue</p>
           </div>
           
@@ -264,7 +294,7 @@ export default function ChatInterface() {
             </div>
             
             <Button type="submit" className="w-full">
-              Login
+              Continue
             </Button>
           </form>
           
@@ -315,10 +345,10 @@ export default function ChatInterface() {
             ) : (
               chatHistory.map((chat) => (
                 <div
-                  key={chat.id}
+                  key={chat.session_id}
                   className={cn(
                     "py-2 px-3 rounded-lg mb-2 cursor-pointer",
-                    activeChatId === chat.id
+                    activeChatId === chat.session_id
                       ? "bg-gray-200 dark:bg-gray-800"
                       : "hover:bg-gray-200 dark:hover:bg-gray-800"
                   )}
@@ -326,12 +356,12 @@ export default function ChatInterface() {
                 >
                   <div className="truncate dark:text-gray-300">
                     {/* Show first 30 chars of question as title */}
-                    {chat.question.length > 30 
-                      ? chat.question.substring(0, 30) + "..."
-                      : chat.question}
+                    {chat.chats[0].question.length > 30 
+                      ? chat.chats[0].question.substring(0, 30) + "..."
+                      : chat.chats[0].question}
                   </div>
                   <div className="text-xs text-gray-500 dark:text-gray-400">
-                    {formatChatDate(chat.timestamp)}
+                    {formatChatDate(chat.chats[0].timestamp)}
                   </div>
                 </div>
               ))
@@ -368,7 +398,7 @@ export default function ChatInterface() {
         </header>
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        <div className="flex-1 overflow-y-auto p-4 space-y-4 mx-20 px-10">
           {messages.length === 0 ? (
             <div className="flex items-center justify-center h-full">
               <div className="text-center text-gray-500 dark:text-gray-400">
