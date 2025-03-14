@@ -1,14 +1,23 @@
 from flask import Flask, request, jsonify
+from flask_cors import CORS
 from .chat_history import get_session_chat_history, save_chat, get_chat_history
 from data.query_data import query_rag
 
 app = Flask(__name__)
+CORS(app)
 
-@app.route('/ask', methods=['POST'])
+@app.route('/ask', methods=['POST', 'OPTIONS'])
 def ask():
+    if request.method == 'OPTIONS':
+        # Handle preflight request
+        response = jsonify()
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type')
+        response.headers.add('Access-Control-Allow-Methods', 'POST')
+        return response
     data = request.json
     user_id = data.get("user_id")
-    session_id = data.get("session_id")
+    session_id = data.get("chat_id")
     question = data.get("question")
 
     if not user_id or not session_id or not question:
