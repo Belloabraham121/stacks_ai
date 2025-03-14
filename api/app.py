@@ -8,6 +8,11 @@ CORS(app)
 
 @app.route('/ask', methods=['POST', 'OPTIONS'])
 def ask():
+    """
+    Handles chat queries and CORS preflight requests for a session.
+    
+    For OPTIONS requests, returns CORS headers for preflight checks. For POST requests, validates that the JSON payload includes a user ID, session ID (under "chat_id"), and question. It then retrieves the session's chat history, generates a response using available history with retrieval augmented generation, stores the new chat entry, and returns a JSON object with the original question, generated response, and sources.
+    """
     if request.method == 'OPTIONS':
         # Handle preflight request
         response = jsonify()
@@ -41,11 +46,26 @@ def ask():
 
 @app.route('/history/<user_id>/<session_id>', methods=['GET'])
 def session_history(user_id, session_id):
+    """
+    Retrieves chat history for a specific user session.
+    
+    Fetches the conversation history using the provided user and session identifiers and
+    returns it as a JSON response.
+    """
     chat_history = get_session_chat_history(user_id, session_id)
     return jsonify(chat_history)
 
 @app.route('/history/<user_id>', methods=['GET'])
 def history(user_id):
+    """
+    Retrieves all chat history entries for the specified user.
+    
+    Args:
+        user_id: The unique identifier of the user whose chat history is requested.
+    
+    Returns:
+        A JSON response containing the user's chat history.
+    """
     chat_history = get_chat_history(user_id)
     return jsonify(chat_history)
 
