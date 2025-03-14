@@ -30,6 +30,18 @@ interface Message {
   role: "user" | "assistant";
 }
 
+/**
+ * Renders the main chat interface, enabling user login, chat history management, and real-time messaging.
+ *
+ * This component provides a complete chat UI where users can log in, view their chat history, start new chat sessions,
+ * and exchange messages with an assistant. It manages dark/light mode preferences, auto-scrolls messages, and handles 
+ * errors (such as failed API requests) via toast notifications. On initialization, it retrieves user preferences from 
+ * localStorage, generates a unique chat session identifier, and loads any existing chat history.
+ *
+ * @remarks
+ * Chat session data is fetched from a backend service using updated endpoints, and the component dynamically sets the 
+ * active chat based on the retrieved history.
+ */
 export default function ChatInterface() {
   const [isDarkMode, setIsDarkMode] = useState(true)
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
