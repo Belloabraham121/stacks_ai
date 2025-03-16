@@ -4,6 +4,7 @@ import { Send, Menu, X, Moon, Sun, LogOut, PlusCircle } from "lucide-react"
 import { useState, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { saveChatToLocalStorage, getSessionChatHistory, getUserChatHistory } from "@/utils/chatStorage"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
@@ -12,6 +13,7 @@ import { cn } from "@/lib/utils"
 import ChatMessage from "./chat-message"
 import { getOrCreateUserId } from "@/utils/userId"
 import { set } from "date-fns"
+import { get } from "http"
 
 // Simplified interfaces for our data types
 interface User {
@@ -76,7 +78,7 @@ export default function ChatInterface() {
         setCurrentUser(parsedUser)
         setIsLoggedIn(true)
         // Fetch chat history for this user
-        fetchAllChatHistory(userId)
+        getUserChatHistory(userId)
       } catch (e) {
         console.error('Failed to parse saved user:', e)
         localStorage.removeItem('currentUser')
@@ -88,38 +90,14 @@ export default function ChatInterface() {
   const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
 
   const fetchChatHistory = async (userId: string, chatId: string) => {
-    try {
-      // Updated to use the full backend URL with port 5000
-      const response = await fetch(`${backendUrl}/history/${userId}/${chatId}`, {
-        headers: {
-          'Accept': 'application/json',
-        },
-      })
-      if (!response.ok) throw new Error('Failed to fetch chat history')
-      
-      const data = await response.json()
+    
+      const data = getSessionChatHistory(userId, chatId)
       return data.reverse()
-    } catch (error) {
-      console.error('Error fetching chat history:', error)
-      toast({
-        title: "Error",
-        description: "Failed to load chat history. Make sure the backend server is running on port 5000.",
-        variant: "destructive"
-      })
     }
-  }
 
   const fetchAllChatHistory = async (userId: string) => {
-    try {
-      // Updated to use the full backend URL with port 5000
-      const response = await fetch(`${backendUrl}/history/${userId}`, {
-        headers: {
-          'Accept': 'application/json',
-        },
-      })
-      if (!response.ok) throw new Error('Failed to fetch chat history')
       
-      const data = await response.json()
+      const data = getUserChatHistory(userId)
       setChatHistory(data)
       
       // If there's chat history and no active chat, set the most recent one
@@ -127,14 +105,7 @@ export default function ChatInterface() {
         setActiveChatId(data[0].session_id)
         loadChat(data[0])
       }
-    } catch (error) {
-      console.error('Error fetching chat history:', error)
-      toast({
-        title: "Error",
-        description: "Failed to load chat history. Make sure the backend server is running on port 5000.",
-        variant: "destructive"
-      })
-    }
+  
   }
   
   // Load a specific chat
@@ -232,7 +203,8 @@ export default function ChatInterface() {
         body: JSON.stringify({
           user_id: userId,
           question: userMessage.content,
-          chat_id: activeChatId
+          chat_id: activeChatId,
+          history: getSessionChatHistory(userId, activeChatId as string),
         }),
       }
     ) 
@@ -240,6 +212,7 @@ export default function ChatInterface() {
       
       
       const data = await response.json()
+      saveChatToLocalStorage(userId, activeChatId as string, input, data.response);
       
       // Add assistant response to chat
       const assistantMessage: Message = {
