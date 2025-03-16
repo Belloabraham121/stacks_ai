@@ -1,14 +1,16 @@
 import boto3
 import json
 
-# Set up the Bedrock client
 client = boto3.client('bedrock-runtime', region_name='us-east-1')
+body = json.dumps({"inputText": "test"})
 
-# Invoke the model
-response = client.invoke_model(
-    modelId='amazon.titan-embed-text-v2:0:8k',
-    body=json.dumps({"inputText": "test"})
-)
-
-# Print the response
-print(response)
+try:
+    response = client.invoke_model(
+        body=body,
+        contentType='application/json',
+        accept='application/json',
+        modelId='amazon.titan-embed-text-v1'
+    )
+    print(response['body'].read().decode('utf-8'))
+except Exception as e:
+    print(f"Error: {e}")
