@@ -3,7 +3,10 @@ from dotenv import load_dotenv
 from langchain_google_genai import GoogleGenerativeAI
 from langchain_chroma import Chroma
 from data.get_embedding_function import get_embedding_function  
+# import logging
 
+
+# logging.basicConfig(level=logging.DEBUG)
 
 load_dotenv()
 
