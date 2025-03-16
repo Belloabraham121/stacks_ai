@@ -11,6 +11,16 @@ interface ChatMessageProps {
   isLoading?: boolean; // Add new prop
 }
 
+/**
+ * Renders a chat message with a role-specific avatar and markdown formatted content.
+ *
+ * This component displays an icon based on the sender's role ("user" or "assistant") and renders the message content as Markdown.
+ * Code blocks within the content are conditionally rendered with syntax highlighting.
+ *
+ * @param role - Indicates the sender of the message; expected values are "user" or "assistant".
+ * @param content - The chat message content in Markdown format.
+ * @returns A JSX element representing the styled chat message.
+ */
 export default function ChatMessage({
   role,
   content,

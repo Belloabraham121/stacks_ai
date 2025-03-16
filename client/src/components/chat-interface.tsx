@@ -1,23 +1,19 @@
 "use client";
 
-import { Send, Menu, X, Moon, Sun, LogOut, PlusCircle } from "lucide-react";
-import { useState, useRef, useEffect } from "react";
-import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { toast } from "@/components/ui/use-toast";
-import { cn } from "@/lib/utils";
-import ChatMessage from "./chat-message";
-import { getOrCreateUserId } from "@/utils/userId";
-import { set } from "date-fns";
+import { Send, Menu, X, Moon, Sun, LogOut, PlusCircle } from "lucide-react"
+import { useState, useRef, useEffect } from "react"
+import { Button } from "@/components/ui/button"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { saveChatToLocalStorage, getSessionChatHistory, getUserChatHistory } from "@/utils/chatStorage"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { toast } from "@/components/ui/use-toast"
+import { cn } from "@/lib/utils"
+import ChatMessage from "./chat-message"
+import { getOrCreateUserId } from "@/utils/userId"
+import { set } from "date-fns"
+import { get } from "http"
 
 // Simplified interfaces for our data types
 interface User {
@@ -36,6 +32,18 @@ interface Message {
   role: "user" | "assistant";
 }
 
+/**
+ * Renders the main chat interface, enabling user login, chat history management, and real-time messaging.
+ *
+ * This component provides a complete chat UI where users can log in, view their chat history, start new chat sessions,
+ * and exchange messages with an assistant. It manages dark/light mode preferences, auto-scrolls messages, and handles 
+ * errors (such as failed API requests) via toast notifications. On initialization, it retrieves user preferences from 
+ * localStorage, generates a unique chat session identifier, and loads any existing chat history.
+ *
+ * @remarks
+ * Chat session data is fetched from a backend service using updated endpoints, and the component dynamically sets the 
+ * active chat based on the retrieved history.
+ */
 export default function ChatInterface() {
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -84,7 +92,7 @@ export default function ChatInterface() {
         setCurrentUser(parsedUser);
         setIsLoggedIn(true);
         // Fetch chat history for this user
-        fetchAllChatHistory(userId);
+        getUserChatHistory(userId)
       } catch (e) {
         console.error("Failed to parse saved user:", e);
         localStorage.removeItem("currentUser");
@@ -96,60 +104,24 @@ export default function ChatInterface() {
   const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
 
   const fetchChatHistory = async (userId: string, chatId: string) => {
-    try {
-      // Updated to use the full backend URL with port 5000
-      const response = await fetch(
-        `${backendUrl}/history/${userId}/${chatId}`,
-        {
-          headers: {
-            Accept: "application/json",
-          },
-        }
-      );
-      if (!response.ok) throw new Error("Failed to fetch chat history");
-
-      const data = await response.json();
-      return data.reverse();
-    } catch (error) {
-      console.error("Error fetching chat history:", error);
-      toast({
-        title: "Error",
-        description:
-          "Failed to load chat history. Make sure the backend server is running on port 5000.",
-        variant: "destructive",
-      });
+    
+      const data = getSessionChatHistory(userId, chatId)
+      return data.reverse()
     }
-  };
 
   const fetchAllChatHistory = async (userId: string) => {
-    try {
-      // Updated to use the full backend URL with port 5000
-      const response = await fetch(`${backendUrl}/history/${userId}`, {
-        headers: {
-          Accept: "application/json",
-        },
-      });
-      if (!response.ok) throw new Error("Failed to fetch chat history");
-
-      const data = await response.json();
-      setChatHistory(data);
-
+      
+      const data = getUserChatHistory(userId)
+      setChatHistory(data)
+      
       // If there's chat history and no active chat, set the most recent one
       if (data.length > 0 && !activeChatId) {
         setActiveChatId(data[0].session_id);
         loadChat(data[0]);
       }
-    } catch (error) {
-      console.error("Error fetching chat history:", error);
-      toast({
-        title: "Error",
-        description:
-          "Failed to load chat history. Make sure the backend server is running on port 5000.",
-        variant: "destructive",
-      });
-    }
-  };
-
+  
+  }
+  
   // Load a specific chat
   const loadChat = async (chat: ChatHistory) => {
     const chatMessagesData = await fetchChatHistory(userId, chat.session_id);
@@ -255,12 +227,16 @@ export default function ChatInterface() {
           user_id: userId,
           question: userMessage.content,
           chat_id: activeChatId,
+          history: getSessionChatHistory(userId, activeChatId as string),
         }),
-      });
-      if (!response.ok) throw new Error("Failed to send message");
-
-      const data = await response.json();
-
+      }
+    ) 
+      if (!response.ok) throw new Error('Failed to send message')
+      
+      
+      const data = await response.json()
+      saveChatToLocalStorage(userId, activeChatId as string, input, data.response);
+      
       // Add assistant response to chat
       const assistantMessage: Message = {
         id: `assistant-${Date.now()}`,
